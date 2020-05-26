@@ -1,28 +1,38 @@
-import codecs
+import codecs //处理编码的
 import json
-from tqdm import tqdm
-import re
-import tokenization
+from tqdm import tqdm //进度条，可以在 Python 长循环中添加一个进度提示信息
+import re //正则表达式
+import tokenization 
 
+#一般标题中会含有实体的信息，就把标题加在正文中，作为真正的正文
 # tokenizer = FullTokenizer(vocab_file='/opt/hanyaopeng/souhu/data/chinese_L-12_H-768_A-12/vocab.txt', do_lower_case=True)
 tokenizer = tokenization.BasicTokenizer(do_lower_case=True)
 input_file = '/opt/hanyaopeng/souhu/data/data_v2/coreEntityEmotion_test_stage1.txt'
 
 with open(input_file, encoding='utf-8') as f:
     test_data = []
+    # 从数据集中读出数据
     for l in tqdm(f):
+        #.strip()去头尾空格的
         data = json.loads(l.strip())
         news_id = data['newsId']
         title = data['title']
         title = tokenizer.tokenize(title)
+        #.join 字符串拼接的
         title = ''.join([l for l in title])
+        # 文章主体
         content = data['content']
         sentences = []
+        # 每个字前面都有''
         ans = '' + title
+        # re.split 字符串切割存到列表中
         for seq in re.split(r'[\n。]', content):
+            # 用bert自带的洗数据
             seq = tokenizer.tokenize(seq)
+            # 对文本分 字 
             seq = ''.join([l for l in seq])
             if len(seq) > 0:
+                # 标题+文本分字后的长度不超过350的，就是ans + '。' + seq，否则就把标题append在后面
                 if len(seq) + len(ans) <= 254:
                     if len(ans) == 0:
                         ans = ans + seq
@@ -41,18 +51,21 @@ with open(input_file, encoding='utf-8') as f:
                     ans = ''
         if len(ans) != 0:
             sentences.append(ans)
+        # 将文本和label 序列化
         for seq in sentences:
+            # label列表初始化 全'0'
             label = ['O'] * len(seq)
             l = ' '.join([la for la in label])
             w = ' '.join([word for word in seq])
             test_data.append((news_id, w, l))
 
 
-
+#将处理好的数据存到json中
 import codecs
 with codecs.open("/opt/hanyaopeng/souhu/data/data_v2/test_samplev2.json", 'w', encoding='utf-8') as f:
     json.dump(test_data, f, ensure_ascii=False)
-
+    
+#文本实体
 fr = open('/opt/hanyaopeng/souhu/data/chinese_L-12_H-768_A-12/outputv2/test_predictionv2.txt', 'r', encoding='utf-8')
 result = fr.readlines()
 
@@ -64,6 +77,7 @@ for i in range(len(test_sample)):
     newsid = test_sample[i][0]
     if newsid not in entity:
         entity[newsid] = []
+    # 如果长度超过254就截取前254个字
     if len(t) > 254: # max_seq_length
         t = t[:254]
     ent = {}
